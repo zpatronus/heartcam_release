@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeartCam: Monitor Your Heart Rate with a Webcam</title>
+  <meta name="description"
+    content="HeartCam is a project that allows you to monitor your heart rate using your device's camera. Developed by Zijun Yang, Jingjia Peng, Mo Yang, and Yijun Wang for EECS 442.">
+  <meta name="keywords"
+    content="HeartCam, heart rate monitor, EECS 442 project, Zijun Yang, Jingjia Peng, Mo Yang, Yijun Wang">
+  <meta name="robots" content="index, follow">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #121212;
+      color: #e0e0e0;
+      position: relative;
+    }
+
+    a {
+      display: block;
+      text-align: center;
+      margin: 0 auto;
+      color: #bb86fc;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2em;
+      color: #bb86fc;
+      margin-bottom: 5px;
+    }
+
+    img {
+      display: block;
+      margin: 20px auto;
+      max-width: 300px;
+      transition: transform 0.3s;
+    }
+
+    img:hover {
+      transform: scale(1.2);
+    }
+
+    p {
+      text-align: center;
+      font-size: 1em;
+      color: #e0e0e0;
+      margin: 5px 0;
+    }
+
+    #videoContainer {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    #videoElement,
+    #amplifiedVideoElement {
+      display: block;
+      width: 100%;
+      max-width: 200px;
+      max-height: 100px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+      transform: scaleX(-1);
+    }
+
+    @media (max-aspect-ratio: 1/1) {
+
+      #videoElement,
+      #amplifiedVideoElement {
+        max-height: 75px;
+      }
+    }
+
+    @media (min-aspect-ratio: 1/1) {
+
+      #videoElement,
+      #amplifiedVideoElement {
+        max-height: 150px;
+      }
+    }
+
+    .caption {
+      text-align: center;
+      font-size: 1em;
+      color: #bb86fc;
+      margin-top: 5px;
+    }
+
+    #message {
+      font-size: 1.5em;
+      color: #03dac6;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    #canvas {
+      display: none;
+    }
+
+    #chartContainer,
+    #pulseChartContainer {
+      width: 100%;
+      max-width: 600px;
+      margin: 30px auto;
+    }
+
+    #heartRateChart {
+      width: 100%;
+      height: auto;
+      max-height: 400px;
+    }
+
+    #pulseChart {
+      width: 100%;
+      max-height: 100px;
+    }
+
+    #info {
+      text-align: center;
+      font-size: 0.9em;
+      color: #b0b0b0;
+      margin-top: 10px;
+    }
+
+    #logButtonsContainer {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .log-button {
+      padding: 10px 20px;
+      font-size: 1em;
+      color: #e0e0e0;
+      background-color: rgba(187, 134, 252, 0.1);
+      border: 1px solid rgba(187, 134, 252, 0.5);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .log-button:hover {
+      background-color: rgba(187, 134, 252, 0.3);
+    }
+
+    #dataPointsInfo {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #b0b0b0;
+    }
+
+    @media (min-width: 1400px) {
+
+      body::before,
+      body::after {
+        content: "";
+        position: fixed;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 300px;
+        height: 300px;
+        background-image: url('qr_code.png');
+        background-size: cover;
+      }
+
+      body::before {
+        left: 5%;
+      }
+
+      body::after {
+        right: 5%;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+</head>
+
+<body>
+
+  <h1>EECS 442 Project: HeartCam</h1>
+  <p>Made with 💜 by Zijun Yang, Jingjia Peng, Mo Yang, Yijun Wang</p>
+  <p>All data is processed locally. Visitors: <span id="visitor-count">Loading...</span>
+
+    <script>
+      async function fetchVisitorCount () {
+        try {
+          const response = await fetch('https://zjyang.dev/visitor_count/heartcam/');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const count = await response.text();
+          document.getElementById('visitor-count').textContent = count;
+        } catch (error) {
+          console.error('Error fetching visitor count:', error);
+          document.getElementById('visitor-count').textContent = 'Error';
+        }
+      }
+
+      fetchVisitorCount();
+    </script>
+  </p>
+
+  <div id="videoContainer">
+    <div>
+      <video id="videoElement" autoplay playsinline></video>
+      <p class="caption">Camera Feed</p>
+    </div>
+    <div>
+      <canvas id="amplifiedVideoElement"></canvas>
+      <p class="caption">Purple indicates pulses</p>
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <p id="message">Initializing...</p>
+  <p id="info"></p>
+  <div id="chartContainer">
+    <canvas id="heartRateChart"></canvas>
+  </div>
+  <div id="pulseChartContainer">
+    <canvas id="pulseChart"></canvas>
+  </div>
+
+  <div id="logButtonsContainer">
+    <button id="clearLogButton" class="log-button">Clear Log</button>
+    <button id="downloadLogButton" class="log-button">Download Log</button>
+  </div>
+
+  <p id="dataPointsInfo">Data points sampled: 0</p>
+
+  <p>🚀 Try it now! 🚀</p>
+  <img src="qr_code.png" alt="">
+  <a href="https://github.com/zpatronus/heartcam_release">Github: https://github.com/zpatronus/heartcam_release</a>
+
+  <script src="heartcam.js"></script>
+
+</body>
+
+</html>
